@@ -5,11 +5,18 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(MultiGhostReplays.MainMod), "Multi-Ghost Replays", "1.6.1", "Snyviper")]
+[assembly: MelonInfo(typeof(MultiGhostReplays.MainMod), "Multi-Ghost Replays", "1.0.0", "Snyviper")]
 [assembly: MelonGame("eu.Catze", "Star Drift Evolution")]
 
 namespace MultiGhostReplays
 {
+    // =========================================================================
+    // GHOST CONTROLLER COMPONENT
+    // =========================================================================
+
+    /// <summary>
+    /// Manages playback interpolation, frame timing, and transforms for an individual ghost vehicle.
+    /// </summary>
     public class GhostController : MonoBehaviour
     {
         public ReplayData replayData;
@@ -26,6 +33,7 @@ namespace MultiGhostReplays
             rb = GetComponent<Rigidbody>();
             carCosmetics = GetComponent<CarCosmetics>();
 
+            // Apply global ghost car transparency settings
             if (carCosmetics != null)
             {
                 CarCosmetics.MakeCarTransparent(gameObject, GameManager.ghostCarTransparency);
@@ -39,6 +47,7 @@ namespace MultiGhostReplays
             float selfTime = replayData.replay_frame_times[replayData.replay_frame_times.Length - 1];
             float worstTime = MainMod.GetWorstReplayTime();
 
+            // Advance playback time based on current speed scale, clamped to the longest active ghost duration
             currentTime = Mathf.Clamp(currentTime + Time.fixedDeltaTime * playbackSpeed, 0f, worstTime);
 
             if (currentTime >= worstTime && playbackSpeed >= 0f)
@@ -48,6 +57,7 @@ namespace MultiGhostReplays
 
             float clampedReplayTime = Mathf.Min(currentTime, selfTime);
 
+            // Locate active frame index matching playback time
             currentFrame = 0;
             while (currentFrame < replayData.replay_frame_times.Length - 1 &&
                    clampedReplayTime > replayData.replay_frame_times[currentFrame + 1])
@@ -55,6 +65,7 @@ namespace MultiGhostReplays
                 currentFrame++;
             }
 
+            // Lock ghost to final frame if replay completed
             if (clampedReplayTime >= selfTime)
             {
                 Vector3 finalPos = replayData.car_positions[replayData.car_positions.Length - 1];
@@ -65,6 +76,7 @@ namespace MultiGhostReplays
                 return;
             }
 
+            // Interpolate position and rotation between current and next recorded frames
             float currentFrameTime = replayData.replay_frame_times[currentFrame];
             float nextFrameTime = replayData.replay_frame_times[currentFrame + 1];
             float frameDelta = nextFrameTime - currentFrameTime;
@@ -81,6 +93,9 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Resets ghost state and moves vehicle back to starting position.
+        /// </summary>
         public void Restart()
         {
             currentTime = 0f;
@@ -95,8 +110,16 @@ namespace MultiGhostReplays
         }
     }
 
+    // =========================================================================
+    // MAIN MOD CLASS
+    // =========================================================================
+
+    /// <summary>
+    /// Handles replay downloading, multi-ghost lifetime management, input controls, and IMGUI rendering.
+    /// </summary>
     public class MainMod : MelonMod
     {
+        // --- PUBLIC DATA & MOD STATE ---
         public static List<GhostController> activeGhosts = new List<GhostController>();
         public static List<ReplayData> queuedLeaderboardReplays = new List<ReplayData>();
 
@@ -106,11 +129,12 @@ namespace MultiGhostReplays
         private string statusMessage = "Ready";
         private bool wasViewingReplay = false;
 
+        // --- REWIRTED / INPUT ENGINE ACTION MAPPINGS ---
         private const int ACTION_STEERING_ANALOG = 0;
         private const int ACTION_RESTART = 12;
         private const int ACTION_PLAY_PAUSE = 17;
 
-        // Cache de Reflexão (executado 1 única vez no início)
+        // --- REFLECTION CACHE ---
         private static FieldInfo timeField;
         private static FieldInfo speedField;
         private static FieldInfo pausedField;
@@ -119,11 +143,14 @@ namespace MultiGhostReplays
         private static FieldInfo carToShowRbField;
         private static ReplayManager cachedReplayManager;
 
+        /// <summary>
+        /// Mod initialization lifecycle method. Caches reflection metadata once at startup.
+        /// </summary>
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Multi-Ghost Replays v1.6.1 loaded successfully!");
+            MelonLogger.Msg("Multi-Ghost Replays v1.0.0 loaded successfully!");
 
-            // Faz o cache das informações de reflexão uma única vez
+            // Pre-cache reflection handles to avoid runtime overhead during playback loops
             Type rmType = typeof(ReplayManager);
             timeField = rmType.GetField("showing_replay_time", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             speedField = rmType.GetField("playbackSpeed", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
@@ -133,6 +160,9 @@ namespace MultiGhostReplays
             carToShowRbField = rmType.GetField("car_to_show_rb", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
         }
 
+        /// <summary>
+        /// Evaluates all active ghost tracks to determine the longest total replay duration.
+        /// </summary>
         public static float GetWorstReplayTime()
         {
             float maxTime = 0f;
@@ -164,13 +194,17 @@ namespace MultiGhostReplays
             return maxTime > 0f ? maxTime : 1000f;
         }
 
+        // =========================================================================
+        // UPDATE & PLAYBACK CONTROL LOOPS
+        // =========================================================================
+
         public override void OnUpdate()
         {
+            // Toggle Mod UI visibility via F5
             if (Input.GetKeyDown(KeyCode.F5))
             {
                 showModUI = !showModUI;
 
-                // Se o usuário ocultou a UI enquanto assiste a um replay, oculta o cursor imediatamente
                 if (!showModUI && GameManager.game_manager != null && GameManager.game_manager.ViewingReplay())
                 {
                     Cursor.visible = false;
@@ -180,18 +214,18 @@ namespace MultiGhostReplays
 
             bool isViewing = GameManager.game_manager != null && GameManager.game_manager.ViewingReplay();
 
-            // Enquanto a UI estiver visível no replay, mantém o cursor destravado e exibido
+            // Retain un-locked cursor when viewing replay alongside mod interface
             if (isViewing && showModUI)
             {
                 Cursor.visible = true;
                 Cursor.lockState = CursorLockMode.None;
             }
 
+            // Cleanup ghosts and reset cursor state upon exiting replay mode
             if (wasViewingReplay && !isViewing)
             {
                 ClearGhosts();
 
-                // Restaura o cursor para uso normal nos menus ao sair da tela de replay
                 Cursor.visible = true;
                 Cursor.lockState = CursorLockMode.None;
             }
@@ -205,6 +239,7 @@ namespace MultiGhostReplays
                     SyncNativeReplayManagerTime();
                 }
 
+                // Instantiate queued ghosts upon entering replay mode
                 if (queuedLeaderboardReplays.Count > 0)
                 {
                     foreach (var data in queuedLeaderboardReplays)
@@ -219,6 +254,7 @@ namespace MultiGhostReplays
 
             if (GameManager.player == null || activeGhosts.Count == 0) return;
 
+            // Handle global play / pause toggling
             if (GameManager.player.GetButtonDown(ACTION_PLAY_PAUSE))
             {
                 foreach (var ghost in activeGhosts)
@@ -229,6 +265,7 @@ namespace MultiGhostReplays
                 }
             }
 
+            // Handle global restart command
             if (GameManager.player.GetButtonDown(ACTION_RESTART))
             {
                 foreach (var ghost in activeGhosts)
@@ -237,6 +274,7 @@ namespace MultiGhostReplays
                 }
             }
 
+            // Evaluate analog steering input to dynamically scrub or scale playback speed
             float analogInput = 0f;
             if (!CameraFollow.InFreeFlyMode())
             {
@@ -263,11 +301,14 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Synchronizes native game ReplayManager state with the master ghost timeline.
+        /// </summary>
         private void SyncNativeReplayManagerTime()
         {
             if (activeGhosts.Count == 0) return;
 
-            // Usa o ReplayManager em cache em vez de FindObjectOfType a cada frame
+            // Reuse cached ReplayManager instance to eliminate search overhead
             if (cachedReplayManager == null)
             {
                 cachedReplayManager = UnityEngine.Object.FindObjectOfType<ReplayManager>();
@@ -293,6 +334,7 @@ namespace MultiGhostReplays
                 if (speedField != null) speedField.SetValue(cachedReplayManager, masterGhost.playbackSpeed);
                 if (pausedField != null) pausedField.SetValue(cachedReplayManager, masterGhost.isPaused);
 
+                // Lock native vehicle transform once its personal replay time concludes
                 if (masterGhost.currentTime >= nativeSelfTime && (carToShow != null || carToShowRb != null))
                 {
                     Vector3 finalPos = nativeReplay.car_positions[nativeReplay.car_positions.Length - 1];
@@ -312,6 +354,9 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Forces initial frame alignment after spawning new ghosts.
+        /// </summary>
         private IEnumerator ForceInitialSyncReset()
         {
             yield return new WaitForEndOfFrame();
@@ -325,6 +370,9 @@ namespace MultiGhostReplays
             MelonLogger.Msg("[Mod] Initial startup synchronization completed!");
         }
 
+        /// <summary>
+        /// Suppresses renderers, particle emissions, and trail effects on native non-ghost cars.
+        /// </summary>
         private void SuppressNativeCarEffects()
         {
             CarCosmetics[] allCars = UnityEngine.Object.FindObjectsOfType<CarCosmetics>();
@@ -362,6 +410,10 @@ namespace MultiGhostReplays
             }
         }
 
+        // =========================================================================
+        // USER INTERFACE & IMGUI RENDERING
+        // =========================================================================
+
         public override void OnGUI()
         {
             if (!showModUI) return;
@@ -370,7 +422,7 @@ namespace MultiGhostReplays
             float topBoxX = (Screen.width - topBoxWidth) / 2f;
             GUI.Box(new Rect(topBoxX, 20, topBoxWidth, 48), "");
 
-            // Estilo para as mensagens do topo
+            // Top status message style
             GUIStyle statusStyle = new GUIStyle(GUI.skin.label);
             statusStyle.alignment = TextAnchor.MiddleCenter;
             statusStyle.fontSize = 12;
@@ -378,6 +430,7 @@ namespace MultiGhostReplays
 
             GUI.Label(new Rect(topBoxX, 22, topBoxWidth, 44), $"Multi-Ghost Mod: {statusMessage}\n<size=10><color=#AAAAAA>Press F5 to toggle UI</color></size>", statusStyle);
 
+            // Render selection panel when leaderboards are active
             if (GameManager.game_manager != null &&
                 (GameManager.game_manager.menu_state == GameManager.MENU_STATE_TRACK_SELECTION_QUICK_RACE ||
                  GameManager.game_manager.menu_state == GameManager.MENU_STATE_DAILY_QUEST) &&
@@ -388,7 +441,7 @@ namespace MultiGhostReplays
 
             if (GameManager.game_manager != null && GameManager.game_manager.ViewingReplay())
             {
-                // Exibe o painel "Special Ghosts" APENAS se houver replays carregados via LOAD SELECTED
+                // Render "Special Ghosts" panel only when ghosts are loaded
                 if (activeGhosts.Count > 0)
                 {
                     float specialBoxWidth = 220f;
@@ -408,6 +461,9 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Renders resolution-scaled IMGUI selection panel with custom scalable checkboxes.
+        /// </summary>
         private void DrawLeaderboardCheckboxes()
         {
             var steamFuncs = GameManager.game_manager.steam_functions;
@@ -416,7 +472,7 @@ namespace MultiGhostReplays
             IList entries = GetLeaderboardEntriesList(steamFuncs);
             if (entries == null) return;
 
-            // Fatores de escala baseados na resolução de referência 1080p (1920x1080)
+            // Compute resolution scale factors relative to 1080p (1920x1080) baseline
             float scaleX = Screen.width / 1920f;
             float scaleY = Screen.height / 1080f;
 
@@ -427,7 +483,7 @@ namespace MultiGhostReplays
 
             GUI.Box(new Rect(panelX, panelY, panelWidth, panelHeight), "");
 
-            // 1. Estilo centralizado para o título "Replay Selection"
+            // 1. Title Header Style ("Replay Selection")
             GUIStyle titleStyle = new GUIStyle(GUI.skin.label);
             titleStyle.alignment = TextAnchor.MiddleCenter;
             titleStyle.fontSize = (int)Math.Round(16f * scaleX);
@@ -440,7 +496,7 @@ namespace MultiGhostReplays
 
             GUI.Label(new Rect(panelX + titleOffsetX, panelY + titleOffsetY, titleWidth, titleHeight), "Replay\nSelection", titleStyle);
 
-            // 2. Estilo customizado para o botão "LOAD SELECTED"
+            // 2. Action Button Style ("LOAD SELECTED")
             GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
             buttonStyle.alignment = TextAnchor.MiddleCenter;
             buttonStyle.fontSize = (int)Math.Round(14f * scaleX);
@@ -453,13 +509,13 @@ namespace MultiGhostReplays
                 MelonCoroutines.Start(DownloadAndLaunchSelectedReplays(steamFuncs, entries));
             }
 
-            // 3. Estilo customizado para os textos dos Replays
+            // 3. Row Label Style ("Replay #X")
             GUIStyle replayLabelStyle = new GUIStyle(GUI.skin.label);
             replayLabelStyle.alignment = TextAnchor.MiddleLeft;
             replayLabelStyle.fontSize = (int)Math.Round(15f * scaleX);
             replayLabelStyle.normal.textColor = Color.white;
 
-            // 4. ESTILO DA CHECKBOX CUSTOMIZADA (Símbolo de Check)
+            // 4. Custom Scalable Checkmark Style
             GUIStyle checkMarkStyle = new GUIStyle(GUI.skin.label);
             checkMarkStyle.alignment = TextAnchor.MiddleCenter;
             checkMarkStyle.fontSize = (int)Math.Round(16f * scaleX);
@@ -481,22 +537,20 @@ namespace MultiGhostReplays
             {
                 float currentY = startY + (i * rowHeight);
 
-                // Texto do replay à esquerda
+                // Render replay label
                 GUI.Label(new Rect(panelX + titleOffsetX, currentY, labelWidth, labelHeight), $"Replay #{i + 1}", replayLabelStyle);
 
-                // Checkbox Customizada Desenhada Manualmente:
+                // Render custom scalable checkbox element
                 Rect toggleRect = new Rect(panelX + toggleOffsetX, currentY + toggleOffsetY, toggleSize, toggleSize);
 
-                // Desenha a caixa exterior escalada
                 GUI.Box(toggleRect, "");
 
-                // Se marcado, desenha o '✓' centralizado dentro da caixa com tamanho proporcional
                 if (selectedEntries[i])
                 {
                     GUI.Label(toggleRect, "✓", checkMarkStyle);
                 }
 
-                // Botão invisível sobre a caixa para capturar os cliques e alternar o estado
+                // Invisible button layer to capture click events
                 if (GUI.Button(toggleRect, "", GUIStyle.none))
                 {
                     selectedEntries[i] = !selectedEntries[i];
@@ -504,6 +558,13 @@ namespace MultiGhostReplays
             }
         }
 
+        // =========================================================================
+        // STEAM UGC & REPLAY MANAGEMENT
+        // =========================================================================
+
+        /// <summary>
+        /// Asynchronously downloads checked leaderboard entries and launches replay mode.
+        /// </summary>
         private IEnumerator DownloadAndLaunchSelectedReplays(SteamFunctions steamFuncs, IList entries)
         {
             isDownloadingBatch = true;
@@ -560,6 +621,9 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Clears static Steam UGC buffer field to prepare for consecutive downloads.
+        /// </summary>
         private void ClearDownloadedUGCBuffer()
         {
             FieldInfo field = typeof(SteamFunctions).GetField("downloadedUGCReplay", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
@@ -569,13 +633,18 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Retrieves active leaderboard entries list via reflection.
+        /// </summary>
         private IList GetLeaderboardEntriesList(SteamFunctions steamFuncs)
         {
             FieldInfo field = typeof(SteamFunctions).GetField("leaderboardEntries", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             return field != null ? field.GetValue(steamFuncs) as IList : null;
         }
 
-        // Otimização no Spawn: Desativa colisores desnecessários e limpa efeitos ao criar
+        /// <summary>
+        /// Instantiates ghost vehicle, disables unnecessary colliders for performance, and attaches GhostController.
+        /// </summary>
         private void SpawnGhostFromData(ReplayData data)
         {
             if (data == null) return;
@@ -585,7 +654,7 @@ namespace MultiGhostReplays
             {
                 GameObject carGo = carTransform.gameObject;
 
-                // Desativa colisores para aliviar o motor de física do Unity com 10+ carros
+                // Disable colliders to reduce physics calculation load when handling 10+ active ghosts
                 foreach (var col in carGo.GetComponentsInChildren<Collider>())
                 {
                     col.enabled = false;
@@ -594,6 +663,7 @@ namespace MultiGhostReplays
                 GhostController controller = carGo.AddComponent<GhostController>();
                 controller.replayData = data;
 
+                // Sync newly spawned ghost playback parameters with existing master ghost
                 if (activeGhosts.Count > 0)
                 {
                     GhostController referenceGhost = activeGhosts[0];
@@ -608,12 +678,15 @@ namespace MultiGhostReplays
 
                 activeGhosts.Add(controller);
 
-                // Aplica a supressão de efeitos nativos uma única vez logo após o spawn
+                // Apply initial native effect suppression upon spawning
                 SuppressNativeCarEffects();
                 MelonLogger.Msg($"Ghost for {data.playername} spawned synchronized!");
             }
         }
 
+        /// <summary>
+        /// Spawns ghost corresponding to the local player's Personal Best track record.
+        /// </summary>
         private void SpawnPersonalBestGhost()
         {
             TrackRecordData trd = GameManager.save_data.GetTrackRecordDataByID(TrackManager.current_track_id);
@@ -627,6 +700,9 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Destroys all active ghost GameObjects and clears state lists.
+        /// </summary>
         private void ClearGhosts()
         {
             foreach (var ghost in activeGhosts)
