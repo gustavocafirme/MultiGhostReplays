@@ -36,7 +36,7 @@ Because *Star Drift Evolution* runs on a 32-bit architecture, **you must use the
 6. Click **Install**.
 
 ### Step 2: Install Multi-Ghost Replays
-1. Download `MultiGhostReplays.dll` from the latest [Releases](https://github.com/gustavocafirme/MultiGhostReplays/releases) tab in this repository.
+1. Download the latest version of `MultiGhostReplays.dll` from the [Releases](https://github.com/gustavocafirme/MultiGhostReplays/releases) tab in this repository.
 2. Move `MultiGhostReplays.dll` into the `Mods` folder inside your *Star Drift Evolution* installation directory:  
    `...\Steam\steamapps\common\Star Drift Evolution\Mods\MultiGhostReplays.dll`
 3. Launch the game!
