@@ -1,6 +1,6 @@
 # Multi-Ghost Replays for Star Drift Evolution
 
-**Multi-Ghost Replays** is a MelonLoader mod for *Star Drift Evolution* that allows players to load, synchronize, and race against up to 10 leaderboard ghosts simultaneously in both Time Trial (Quick Race) and Daily Challenge modes.
+**Multi-Ghost Replays** is a MelonLoader mod for *Star Drift Evolution* that allows players to load, synchronize, and view up to 10 leaderboard ghosts simultaneously in a replay from both Time Trial (Quick Race) and Daily Challenge modes.
 
 ---
 
