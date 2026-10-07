@@ -56,7 +56,7 @@ Because *Star Drift Evolution* runs on a 32-bit architecture, **you must use the
 
 ## Controls
 
-| Key / Action | Function |
+| Key | Function |
 | :--- | :--- |
 | **F5** | Toggle Mod UI Visibility |
 
