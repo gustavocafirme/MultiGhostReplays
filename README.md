@@ -17,7 +17,7 @@
 
 ## Requirements
 
-- **Star Drift Evolution** (Steam release)
+- **Star Drift Evolution**
 - **MelonLoader v0.5.7 (x86 / 32-bit version)**
 
 ---
