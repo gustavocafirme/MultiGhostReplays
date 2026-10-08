@@ -43,6 +43,16 @@ Because *Star Drift Evolution* runs on a 32-bit architecture, **you must use the
 
 ---
 
+## Updating
+
+### Update Multi-Ghost Replays
+1. Download the latest version of `MultiGhostReplays.dll` from the [Releases](https://github.com/gustavocafirme/MultiGhostReplays/releases) tab in this repository.
+2. Move `MultiGhostReplays.dll` into the `Mods` folder inside your *Star Drift Evolution* installation directory:  
+   `...\Steam\steamapps\common\Star Drift Evolution\Mods\MultiGhostReplays.dll`, replacing the older version of the dll.
+3. Launch the game!
+
+---
+
 ## How to Use
 
 1. Navigate to either **Quick Race (Time Trial)** or **Daily Quest**.
