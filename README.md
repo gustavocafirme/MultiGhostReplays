@@ -4,7 +4,7 @@
 
 ---
 
-### Features
+## Features
 
 - **Leaderboard Multi-Ghost Support:** Select and load up to 10 player ghosts simultaneously directly from the leaderboards in replay viewing from both Quick Race and Daily Challenge modes.
 - **Personal Best Ghost Spawning:** Quickly spawn your own Personal Best record ghost alongside loaded leaderboard entries.
