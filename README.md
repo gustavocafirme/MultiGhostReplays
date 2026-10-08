@@ -4,14 +4,18 @@
 
 ---
 
-## Features
+### Features
 
-- **Leaderboard Multi-Ghost Support:** Select and load up to 10 player ghosts simultaneously directly from the leaderboards in replay viewing from both Time Trial and Daily Challenge modes.
+- **Leaderboard Multi-Ghost Support:** Select and load up to 10 player ghosts simultaneously directly from the leaderboards in replay viewing from both Quick Race and Daily Challenge modes.
 - **Personal Best Ghost Spawning:** Quickly spawn your own Personal Best record ghost alongside loaded leaderboard entries.
+- **Synchronized Playback:** Master timeline synchronization ensuring all active ghosts remain aligned during play, pause, restart, and high-speed timeline scrubbing.
+- **Tire Skidmarks Support:** Renders ground skidmarks for ghost vehicles with dynamic surface color mapping based on track terrain.
+- **Ghost Headlights Support:** Renders active headlights on ghost vehicles during night-track replays for enhanced visual clarity.
+- **Custom Visual Toggles:** Easily enable or disable visual effects on demand, including tire smoke trails, night-track headlights, and ground skidmarks, all enabled by default.
 - **Ghost Reset Option:** Includes a manual clear button ("Clear All") as a quick reset safeguard to instantly destroy all active ghosts on demand.
+- **Massive Performance Optimizations:** Built with static lookup caching for components and singletons to minimize runtime reflection overhead and maximize FPS during multi-ghost playback.
 - **Custom Scalable UI:** Features a resolution-scaled selection panel with custom checkmarks that render properly at high resolutions (1080p, 1440p, 4K).
 - **Toggleable Interface:** Easily hide or show the mod interface at any time during gameplay by pressing **F5**.
-- **Synchronized Playback:** Master timeline synchronization ensuring all active ghosts remain aligned during play, pause, restart, and high-speed timeline scrubbing.
 
 ---
 
