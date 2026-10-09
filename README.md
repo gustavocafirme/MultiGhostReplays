@@ -8,11 +8,11 @@
 
 ## Features
 
-- **Leaderboard Multi-Ghost Support:** Select and load up to 10 player ghosts simultaneously directly from the leaderboards in replay viewing from both Quick Race and Daily Challenge modes.
+- **Leaderboard Multi-Ghost Support:** Select and load up to 512 player ghosts simultaneously from a new extended leaderboard panel in replay viewing from both Quick Race and Daily Challenge modes.
 - **Personal Best Ghost Spawning:** Quickly spawn your own Personal Best record ghost alongside loaded leaderboard entries.
 - **Synchronized Playback:** Master timeline synchronization ensuring all active ghosts remain aligned during play, pause, restart, and high-speed timeline scrubbing.
 - **Tire Skidmarks Support:** Renders ground skidmarks for ghost vehicles with dynamic surface color mapping based on track terrain.
-- **Ghost Headlights Support:** Renders active headlights on ghost vehicles during night-track replays for enhanced visual clarity.
+- **Ghost Headlights Support:** Renders active headlights on ghost vehicles during night-track replays for enhanced immersion.
 - **Custom Visual Toggles:** Easily enable or disable visual effects on demand, including tire smoke trails, night-track headlights, and ground skidmarks, all enabled by default.
 - **Ghost Reset Option:** Includes a manual clear button ("Clear All") as a quick reset safeguard to instantly destroy all active ghosts on demand.
 - **Massive Performance Optimizations:** Built with static lookup caching for components and singletons to minimize runtime reflection overhead and maximize FPS during multi-ghost playback.
@@ -63,10 +63,11 @@ Because *Star Drift Evolution* runs on a 32-bit architecture, **you must use the
 
 1. Navigate to either **Quick Race (Time Trial)** or **Daily Quest**.
 2. Make sure the replay option in the track selection menu is set to **REPLAY: LEADERBOARD**.
-3. Use the custom panel on the right side of the screen to select up to the **10 leaderboard entries**.
-4. Click **LOAD SELECTED**.
-5. Wait for it to download the replay tracks and enter the replay view afterwards.
-6. Watch all selected ghosts simultaneously!
+3. Click the Leaderboard button on the right side of the screen to open up the **Leaderboard Replay Browser**.
+4. Select all the replays you wish to view through the checkboxes and batch buttons.
+5. Click **LOAD SELECTED**.
+6. Wait for it to download the replay tracks and enter the replay view afterwards.
+7. Watch all selected ghosts simultaneously!
 
 ---
 
