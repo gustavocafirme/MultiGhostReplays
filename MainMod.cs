@@ -8,7 +8,7 @@ using UnityEngine;
 namespace MultiGhostReplays
 {
     /// <summary>
-    /// Main entry point for the Multi-Ghost Replays mod (v1.1.1).
+    /// Main entry point for the Multi-Ghost Replays mod (v1.2.0).
     /// Handles mod lifecycle, input shortcuts, ghost spawning orchestration, and reflection binding.
     /// </summary>
     public class MainMod : MelonMod
@@ -25,6 +25,7 @@ namespace MultiGhostReplays
         private bool showModUI = true;
         private static bool isNightTrack = false;
         private bool wasViewingReplay = false;
+        private static int lastTrackID = -1;
 
         private const int ACTION_STEERING_ANALOG = 0;
         private const int ACTION_RESTART = 12;
@@ -43,7 +44,7 @@ namespace MultiGhostReplays
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Multi-Ghost Replays v1.1.1 loaded successfully!");
+            MelonLogger.Msg("Multi-Ghost Replays v1.2.0 loaded successfully!");
 
             Type rmType = typeof(ReplayManager);
             timeField = rmType.GetField("showing_replay_time", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
@@ -97,6 +98,14 @@ namespace MultiGhostReplays
         /// </summary>
         public override void OnUpdate()
         {
+            // Reset leaderboard table state when user changes tracks
+            int currentTrack = TrackManager.current_track_id;
+            if (currentTrack != lastTrackID)
+            {
+                lastTrackID = currentTrack;
+                ReplayDownloader.ResetTableData();
+            }
+
             // Toggle UI overlay visibility via F5 key
             if (Input.GetKeyDown(KeyCode.F5))
             {

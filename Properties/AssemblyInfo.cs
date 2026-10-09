@@ -15,7 +15,7 @@ using MelonLoader;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-[assembly: MelonInfo(typeof(MultiGhostReplays.MainMod), "Multi-Ghost Replays", "1.1.1", "Snyviper")]
+[assembly: MelonInfo(typeof(MultiGhostReplays.MainMod), "Multi-Ghost Replays", "1.2.0", "Snyviper")]
 [assembly: MelonGame("eu.Catze", "Star Drift Evolution")]
 
 // Definir ComVisible como false torna os tipos neste assembly invisíveis

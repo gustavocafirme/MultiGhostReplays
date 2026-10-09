@@ -1,102 +1,213 @@
-﻿using System;
-using System.Collections;
+﻿using MelonLoader;
+using System;
 using UnityEngine;
-using MelonLoader;
 
 namespace MultiGhostReplays
 {
     /// <summary>
-    /// Handles OnGUI rendering for the leaderboard selection overlay and replay control windows.
+    /// Handles the OnGUI rendering and user interactions for the custom Leaderboard Replay Browser window.
+    /// Provides controls for range selection, downloading, and launching ghost replays.
     /// </summary>
     public static class LeaderboardUI
     {
-        public static bool[] selectedEntries = new bool[10];
+        /// <summary>
+        /// Controls the visibility state of the extended modal leaderboard replay browser.
+        /// </summary>
+        public static bool showExtendedWindow = false;
+
+        private static Vector2 scrollPosition = Vector2.zero;
 
         /// <summary>
-        /// Draws the quick top-10 leaderboard checkbox overlay on track select screens.
+        /// Draws the primary entry button and triggers the rendering of the extended leaderboard window when active.
         /// </summary>
         public static void DrawLeaderboardCheckboxes()
         {
-            var steamFuncs = GameManager.game_manager.steam_functions;
+            var steamFuncs = GameManager.game_manager?.steam_functions;
             if (steamFuncs == null) return;
 
-            IList entries = ReplayDownloader.GetLeaderboardEntriesList(steamFuncs);
-            if (entries == null) return;
-
+            // Compute resolution scale factors relative to baseline 1080p
             float scaleX = Screen.width / 1920f;
             float scaleY = Screen.height / 1080f;
 
-            float panelWidth = (float)Math.Round(128f * scaleX);
-            float panelX = Screen.width - (float)Math.Round(465f * scaleX) - panelWidth;
-            float panelY = Screen.height - (float)Math.Round(445f * scaleY);
-            float panelHeight = (float)Math.Round(439f * scaleY);
+            float btnWidth = (float)Math.Round(140f * scaleX);
+            float btnHeight = (float)Math.Round(45f * scaleY);
+            float btnX = Screen.width - (float)Math.Round(465f * scaleX) - btnWidth;
+            float btnY = Screen.height - (float)Math.Round(445f * scaleY);
 
-            GUI.Box(new Rect(panelX, panelY, panelWidth, panelHeight), "");
-
-            GUIStyle titleStyle = new GUIStyle(GUI.skin.label);
-            titleStyle.alignment = TextAnchor.MiddleCenter;
-            titleStyle.fontSize = (int)Math.Round(16f * scaleX);
-            titleStyle.normal.textColor = Color.white;
-
-            float titleOffsetX = (float)Math.Round(12f * scaleX);
-            float titleOffsetY = (float)Math.Round(8f * scaleY);
-            float titleWidth = panelWidth - ((float)Math.Round(24f * scaleX));
-            float titleHeight = (float)Math.Round(38f * scaleY);
-
-            GUI.Label(new Rect(panelX + titleOffsetX, panelY + titleOffsetY, titleWidth, titleHeight), "Replay\nSelection", titleStyle);
-
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
-            buttonStyle.alignment = TextAnchor.MiddleCenter;
-            buttonStyle.fontSize = (int)Math.Round(14f * scaleX);
-
-            float btnOffsetY = (float)Math.Round(54f * scaleY);
-            float btnHeight = (float)Math.Round(42f * scaleY);
-
-            if (!ReplayDownloader.isDownloadingBatch && GUI.Button(new Rect(panelX + titleOffsetX, panelY + btnOffsetY, titleWidth, btnHeight), "LOAD\nSELECTED", buttonStyle))
+            GUIStyle fullTableBtnStyle = new GUIStyle(GUI.skin.button)
             {
-                MelonCoroutines.Start(ReplayDownloader.DownloadAndLaunchSelectedReplays(steamFuncs, entries, selectedEntries));
+                alignment = TextAnchor.MiddleCenter,
+                fontSize = (int)Math.Round(14f * scaleX),
+                fontStyle = FontStyle.Bold
+            };
+
+            // Main entry point button to toggle the full leaderboard modal
+            if (GUI.Button(new Rect(btnX, btnY, btnWidth, btnHeight), "⊞ LEADERBOARD", fullTableBtnStyle))
+            {
+                showExtendedWindow = !showExtendedWindow;
+
+                // Automatically fetch initial batch (ranks 1-50) if opening an empty table
+                if (showExtendedWindow && ReplayDownloader.loadedEntries.Count == 0)
+                {
+                    ReplayDownloader.FetchLeaderboardRange(1, 50);
+                }
             }
 
-            GUIStyle replayLabelStyle = new GUIStyle(GUI.skin.label);
-            replayLabelStyle.alignment = TextAnchor.MiddleLeft;
-            replayLabelStyle.fontSize = (int)Math.Round(15f * scaleX);
-            replayLabelStyle.normal.textColor = Color.white;
-
-            GUIStyle checkMarkStyle = new GUIStyle(GUI.skin.label);
-            checkMarkStyle.alignment = TextAnchor.MiddleCenter;
-            checkMarkStyle.fontSize = (int)Math.Round(16f * scaleX);
-            checkMarkStyle.fontStyle = FontStyle.Bold;
-            checkMarkStyle.normal.textColor = Color.green;
-
-            int entryCount = Mathf.Min(10, entries.Count);
-            float startY = panelY + (float)Math.Round(103f * scaleY);
-            float rowHeight = (float)Math.Round(33f * scaleY);
-
-            float labelWidth = (float)Math.Round(93f * scaleX);
-            float labelHeight = (float)Math.Round(28f * scaleY);
-
-            float toggleOffsetX = (float)Math.Round((115f - 18f) * scaleX);
-            float toggleOffsetY = (float)Math.Round(4f * scaleY);
-            float toggleSize = (float)Math.Round(20f * scaleX);
-
-            for (int i = 0; i < entryCount; i++)
+            if (showExtendedWindow)
             {
-                float currentY = startY + (i * rowHeight);
+                DrawExtendedLeaderboardWindow(steamFuncs);
+            }
+        }
 
-                GUI.Label(new Rect(panelX + titleOffsetX, currentY, labelWidth, labelHeight), $"Replay #{i + 1}", replayLabelStyle);
+        /// <summary>
+        /// Renders the modal window containing the scrollable leaderboard entry table and batch action buttons.
+        /// </summary>
+        /// <param name="steamFuncs">Active instance of the native SteamFunctions manager.</param>
+        private static void DrawExtendedLeaderboardWindow(SteamFunctions steamFuncs)
+        {
+            float winWidth = 610f;
+            float winHeight = Screen.height / 2;
+            float winX = (Screen.width - winWidth) / 2f;
+            float winY = (Screen.height - winHeight) / 2f;
 
-                Rect toggleRect = new Rect(panelX + toggleOffsetX, currentY + toggleOffsetY, toggleSize, toggleSize);
+            // Modal window background and header frame
+            GUI.Box(new Rect(winX, winY, winWidth, winHeight), "");
+            GUI.Box(new Rect(winX + 2, winY + 2, winWidth - 4, winHeight - 4), "Leaderboard Replay Browser");
 
-                GUI.Box(toggleRect, "");
+            // Close button
+            if (GUI.Button(new Rect(winX + winWidth - 30f, winY + 5f, 24f, 22f), "X"))
+            {
+                showExtendedWindow = false;
+            }
 
-                if (selectedEntries[i])
+            // Select all loaded entries
+            if (GUI.Button(new Rect(winX + 15f, winY + 30f, 30f, 24f), "✓"))
+            {
+                foreach (var entry in ReplayDownloader.loadedEntries) entry.IsSelected = true;
+            }
+
+            // Deselect all loaded entries
+            if (GUI.Button(new Rect(winX + 50f, winY + 30f, 30f, 24f), "X"))
+            {
+                foreach (var entry in ReplayDownloader.loadedEntries) entry.IsSelected = false;
+            }
+
+            // Trigger batch download and game scene setup for selected replays
+            int selectedCount = ReplayDownloader.loadedEntries.FindAll(e => e.IsSelected).Count;
+            string btnText = selectedCount > 0 ? $"LOAD ({Math.Min(selectedCount, ReplayDownloader.MAX_ALLOWED_GHOSTS)})" : "LOAD SELECTED";
+
+            if (!ReplayDownloader.isDownloadingBatch && GUI.Button(new Rect(winX + 90f, winY + 30f, 130f, 24f), btnText))
+            {
+                MelonCoroutines.Start(ReplayDownloader.DownloadAndLaunchSelectedEntries(steamFuncs));
+            }
+
+            // Table Column Headers
+            float headerY = winY + 62f;
+            GUI.Box(new Rect(winX + 10f, headerY, winWidth - 35f, 26f), "");
+            GUI.Label(new Rect(winX + 15f, headerY + 3f, 35f, 20f), "Set");
+            GUI.Label(new Rect(winX + 55f, headerY + 3f, 25f, 20f), "Chk");
+            GUI.Label(new Rect(winX + 85f, headerY + 3f, 45f, 20f), "Rank");
+            GUI.Label(new Rect(winX + 135f, headerY + 3f, 40f, 20f), "Flag");
+            GUI.Label(new Rect(winX + 180f, headerY + 3f, 180f, 20f), "Player Name");
+            GUI.Label(new Rect(winX + 370f, headerY + 3f, 120f, 20f), "Car Model");
+            GUI.Label(new Rect(winX + 500f, headerY + 3f, 120f, 20f), "Time");
+
+            // Scrollable Entry Table Area
+            float tableY = winY + 92f;
+            float tableHeight = winHeight - 145f;
+            float contentHeight = ReplayDownloader.loadedEntries.Count * 28f;
+
+            scrollPosition = GUI.BeginScrollView(
+                new Rect(winX + 10f, tableY, winWidth - 20f, tableHeight),
+                scrollPosition,
+                new Rect(0f, 0f, winWidth - 40f, contentHeight)
+            );
+
+            Color defaultGuiColor = GUI.color;
+
+            // Custom button style with zero padding to prevent text overflow artifacts on range toggles
+            GUIStyle rangeButtonStyle = new GUIStyle(GUI.skin.button)
+            {
+                alignment = TextAnchor.MiddleCenter,
+                padding = new RectOffset(0, 0, 0, 0)
+            };
+
+            for (int i = 0; i < ReplayDownloader.loadedEntries.Count; i++)
+            {
+                var entry = ReplayDownloader.loadedEntries[i];
+                float rowY = i * 28f;
+
+                // Highlight actively downloading entry rows in red
+                if (entry.IsDownloading)
                 {
-                    GUI.Label(toggleRect, "✓", checkMarkStyle);
+                    GUI.color = Color.red;
+                    GUI.Box(new Rect(0f, rowY, 675f, 26f), "");
+                    GUI.color = defaultGuiColor;
                 }
 
-                if (GUI.Button(toggleRect, "", GUIStyle.none))
+                // Range toggle button (selects/deselects all rows up to index i)
+                if (GUI.Button(new Rect(5f, rowY + 2f, 32f, 22f), "", rangeButtonStyle))
                 {
-                    selectedEntries[i] = !selectedEntries[i];
+                    ToggleRangeSelectionUpTo(i);
+                }
+
+                // Individual row selection toggle
+                entry.IsSelected = GUI.Toggle(new Rect(45f, rowY + 4f, 20f, 20f), entry.IsSelected, "");
+
+                // Entry Metadata Labels
+                GUI.Label(new Rect(75f, rowY + 3f, 45f, 20f), $"#{entry.Rank}");
+
+                // Country flag texture rendering
+                if (entry.CountryId >= 0 && GameManager.game_manager != null && entry.CountryId < GameManager.game_manager.countryFlags.Length)
+                {
+                    Texture flagTex = (Texture)GameManager.game_manager.countryFlags[entry.CountryId];
+                    if (flagTex != null)
+                    {
+                        GUI.DrawTexture(new Rect(125f, rowY + 4f, 24f, 16f), flagTex);
+                    }
+                }
+
+                GUI.Label(new Rect(170f, rowY + 3f, 180f, 20f), entry.PlayerName);
+                GUI.Label(new Rect(360f, rowY + 3f, 120f, 20f), entry.CarName);
+                GUI.Label(new Rect(490f, rowY + 3f, 120f, 20f), entry.FormattedTime);
+            }
+
+            GUI.EndScrollView();
+
+            // Pagination button to dynamically fetch 50 additional entries
+            float bottomY = winY + winHeight - 42f;
+            if (!ReplayDownloader.isFetchingEntries && GUI.Button(new Rect(winX + (winWidth - 160f) / 2f, bottomY, 160f, 30f), "Add 50 Players"))
+            {
+                int nextStart = ReplayDownloader.loadedEntries.Count + 1;
+                ReplayDownloader.FetchLeaderboardRange(nextStart, nextStart + 49);
+            }
+        }
+
+        /// <summary>
+        /// Toggles selection state for all leaderboard entries from index 0 up to targetIndex.
+        /// If all entries in range are checked, deselects them all; otherwise, selects all in range.
+        /// </summary>
+        /// <param name="targetIndex">The end index of the range operation.</param>
+        private static void ToggleRangeSelectionUpTo(int targetIndex)
+        {
+            bool allChecked = true;
+
+            for (int i = 0; i <= targetIndex; i++)
+            {
+                if (i < ReplayDownloader.loadedEntries.Count && !ReplayDownloader.loadedEntries[i].IsSelected)
+                {
+                    allChecked = false;
+                    break;
+                }
+            }
+
+            bool newState = !allChecked;
+
+            for (int i = 0; i <= targetIndex; i++)
+            {
+                if (i < ReplayDownloader.loadedEntries.Count)
+                {
+                    ReplayDownloader.loadedEntries[i].IsSelected = newState;
                 }
             }
         }
