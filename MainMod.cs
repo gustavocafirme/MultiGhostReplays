@@ -8,7 +8,7 @@ using UnityEngine;
 namespace MultiGhostReplays
 {
     /// <summary>
-    /// Main entry point for the Multi-Ghost Replays mod (v1.2.0).
+    /// Main entry point for the Multi-Ghost Replays mod (v1.2.1).
     /// Handles mod lifecycle, input shortcuts, ghost spawning orchestration, and reflection binding.
     /// </summary>
     public class MainMod : MelonMod
@@ -44,7 +44,7 @@ namespace MultiGhostReplays
 
         public override void OnInitializeMelon()
         {
-            MelonLogger.Msg("Multi-Ghost Replays v1.2.0 loaded successfully!");
+            MelonLogger.Msg("Multi-Ghost Replays v1.2.1 loaded successfully!");
 
             Type rmType = typeof(ReplayManager);
             timeField = rmType.GetField("showing_replay_time", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
