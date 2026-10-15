@@ -452,6 +452,12 @@ namespace MultiGhostReplays
         {
             if (data == null) return;
 
+            // Safety fallback: Ensure csd is never null before handing replay to native ReplayManager.CreateReplayCar
+            if (data.csd == null)
+            {
+                data.csd = new CarStyleData(data.car_type, 0);
+            }
+
             Transform carTransform = ReplayManager.CreateReplayCar(data, false, data.car_positions[0], data.car_rotations[0]);
             if (carTransform != null)
             {

@@ -59,6 +59,10 @@
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Star Drift Evolution\StarDriftEvolution_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.JSONSerializeModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Star Drift Evolution\StarDriftEvolution_Data\Managed\UnityEngine.JSONSerializeModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityEngine.PhysicsModule, Version=0.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\Star Drift Evolution\StarDriftEvolution_Data\Managed\UnityEngine.PhysicsModule.dll</HintPath>
@@ -75,6 +79,7 @@
   <ItemGroup>
     <Compile Include="MainMod.cs" />
     <Compile Include="GhostController.cs" />
+    <Compile Include="ReplayCacheManager.cs" />
     <Compile Include="SkidmarkManager.cs" />
     <Compile Include="ReplayDownloader.cs" />
     <Compile Include="LeaderboardUI.cs" />

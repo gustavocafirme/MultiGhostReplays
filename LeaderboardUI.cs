@@ -4,28 +4,16 @@ using UnityEngine;
 
 namespace MultiGhostReplays
 {
-    /// <summary>
-    /// Handles the OnGUI rendering and user interactions for the custom Leaderboard Replay Browser window.
-    /// Provides controls for range selection, downloading, and launching ghost replays.
-    /// </summary>
     public static class LeaderboardUI
     {
-        /// <summary>
-        /// Controls the visibility state of the extended modal leaderboard replay browser.
-        /// </summary>
         public static bool showExtendedWindow = false;
-
         private static Vector2 scrollPosition = Vector2.zero;
 
-        /// <summary>
-        /// Draws the primary entry button and triggers the rendering of the extended leaderboard window when active.
-        /// </summary>
         public static void DrawLeaderboardCheckboxes()
         {
             var steamFuncs = GameManager.game_manager?.steam_functions;
             if (steamFuncs == null) return;
 
-            // Compute resolution scale factors relative to baseline 1080p
             float scaleX = Screen.width / 1920f;
             float scaleY = Screen.height / 1080f;
 
@@ -41,12 +29,10 @@ namespace MultiGhostReplays
                 fontStyle = FontStyle.Bold
             };
 
-            // Main entry point button to toggle the full leaderboard modal
             if (GUI.Button(new Rect(btnX, btnY, btnWidth, btnHeight), "⊞ LEADERBOARD", fullTableBtnStyle))
             {
                 showExtendedWindow = !showExtendedWindow;
 
-                // Automatically fetch initial batch (ranks 1-50) if opening an empty table
                 if (showExtendedWindow && ReplayDownloader.loadedEntries.Count == 0)
                 {
                     ReplayDownloader.FetchLeaderboardRange(1, 50);
@@ -59,18 +45,14 @@ namespace MultiGhostReplays
             }
         }
 
-        /// <summary>
-        /// Renders the modal window containing the scrollable leaderboard entry table and batch action buttons.
-        /// </summary>
-        /// <param name="steamFuncs">Active instance of the native SteamFunctions manager.</param>
         private static void DrawExtendedLeaderboardWindow(SteamFunctions steamFuncs)
         {
             float winWidth = 610f;
-            float winHeight = Screen.height / 2;
+            float winHeight = Screen.height / 2f;
             float winX = (Screen.width - winWidth) / 2f;
             float winY = (Screen.height - winHeight) / 2f;
 
-            // Modal window background and header frame
+            // Window frames
             GUI.Box(new Rect(winX, winY, winWidth, winHeight), "");
             GUI.Box(new Rect(winX + 2, winY + 2, winWidth - 4, winHeight - 4), "Leaderboard Replay Browser");
 
@@ -80,28 +62,55 @@ namespace MultiGhostReplays
                 showExtendedWindow = false;
             }
 
-            // Select all loaded entries
+            // Audio overflow warning (> 166 selected)
+            int selectedCount = ReplayDownloader.loadedEntries.FindAll(e => e.IsSelected).Count;
+            bool shouldShowTooltip = false;
+
+            if (selectedCount > 166)
+            {
+                GUIStyle warningStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleRight,
+                    fontSize = 11,
+                    fontStyle = FontStyle.Bold
+                };
+                warningStyle.normal.textColor = Color.red;
+
+                Rect warningRect = new Rect(winX + winWidth - 170f, winY + 32f, 160f, 24f);
+                GUI.Label(warningRect, "⚠️ AUDIO OVERFLOW", warningStyle);
+
+                if (warningRect.Contains(Event.current.mousePosition))
+                {
+                    shouldShowTooltip = true;
+                }
+            }
+
+            // Selection controls
             if (GUI.Button(new Rect(winX + 15f, winY + 30f, 30f, 24f), "✓"))
             {
                 foreach (var entry in ReplayDownloader.loadedEntries) entry.IsSelected = true;
             }
 
-            // Deselect all loaded entries
             if (GUI.Button(new Rect(winX + 50f, winY + 30f, 30f, 24f), "X"))
             {
                 foreach (var entry in ReplayDownloader.loadedEntries) entry.IsSelected = false;
             }
 
-            // Trigger batch download and game scene setup for selected replays
-            int selectedCount = ReplayDownloader.loadedEntries.FindAll(e => e.IsSelected).Count;
-            string btnText = selectedCount > 0 ? $"LOAD ({Math.Min(selectedCount, ReplayDownloader.MAX_ALLOWED_GHOSTS)})" : "LOAD SELECTED";
-
-            if (!ReplayDownloader.isDownloadingBatch && GUI.Button(new Rect(winX + 90f, winY + 30f, 130f, 24f), btnText))
+            // Action Buttons
+            if (!ReplayDownloader.isDownloadingBatch)
             {
-                MelonCoroutines.Start(ReplayDownloader.DownloadAndLaunchSelectedEntries(steamFuncs));
+                if (GUI.Button(new Rect(winX + 90f, winY + 30f, 180f, 24f), "VIEW WITH SELECTED"))
+                {
+                    MelonCoroutines.Start(ReplayDownloader.ViewReplayWithSelectedEntries(steamFuncs));
+                }
+
+                if (GUI.Button(new Rect(winX + 280f, winY + 30f, 120f, 24f), "LOAD SELECTED"))
+                {
+                    MelonCoroutines.Start(ReplayDownloader.LoadSelectedEntriesOnly(steamFuncs));
+                }
             }
 
-            // Table Column Headers
+            // Headers
             float headerY = winY + 62f;
             GUI.Box(new Rect(winX + 10f, headerY, winWidth - 35f, 26f), "");
             GUI.Label(new Rect(winX + 15f, headerY + 3f, 35f, 20f), "Set");
@@ -112,7 +121,7 @@ namespace MultiGhostReplays
             GUI.Label(new Rect(winX + 370f, headerY + 3f, 120f, 20f), "Car Model");
             GUI.Label(new Rect(winX + 500f, headerY + 3f, 120f, 20f), "Time");
 
-            // Scrollable Entry Table Area
+            // Scroll View Area
             float tableY = winY + 92f;
             float tableHeight = winHeight - 145f;
             float contentHeight = ReplayDownloader.loadedEntries.Count * 28f;
@@ -125,39 +134,38 @@ namespace MultiGhostReplays
 
             Color defaultGuiColor = GUI.color;
 
-            // Custom button style with zero padding to prevent text overflow artifacts on range toggles
             GUIStyle rangeButtonStyle = new GUIStyle(GUI.skin.button)
             {
                 alignment = TextAnchor.MiddleCenter,
                 padding = new RectOffset(0, 0, 0, 0)
             };
 
+            GUIStyle labelStyle = new GUIStyle(GUI.skin.label);
+
             for (int i = 0; i < ReplayDownloader.loadedEntries.Count; i++)
             {
                 var entry = ReplayDownloader.loadedEntries[i];
                 float rowY = i * 28f;
 
-                // Highlight actively downloading entry rows in red
                 if (entry.IsDownloading)
                 {
                     GUI.color = Color.red;
-                    GUI.Box(new Rect(0f, rowY, 675f, 26f), "");
+                    GUI.Box(new Rect(0f, rowY, winWidth - 40f, 26f), "");
                     GUI.color = defaultGuiColor;
                 }
 
-                // Range toggle button (selects/deselects all rows up to index i)
                 if (GUI.Button(new Rect(5f, rowY + 2f, 32f, 22f), "", rangeButtonStyle))
                 {
                     ToggleRangeSelectionUpTo(i);
                 }
 
-                // Individual row selection toggle
                 entry.IsSelected = GUI.Toggle(new Rect(45f, rowY + 4f, 20f, 20f), entry.IsSelected, "");
 
-                // Entry Metadata Labels
-                GUI.Label(new Rect(75f, rowY + 3f, 45f, 20f), $"#{entry.Rank}");
+                // Yellow text for cached replays
+                labelStyle.normal.textColor = entry.IsCached ? Color.yellow : Color.white;
 
-                // Country flag texture rendering
+                GUI.Label(new Rect(75f, rowY + 3f, 45f, 20f), $"#{entry.Rank}", labelStyle);
+
                 if (entry.CountryId >= 0 && GameManager.game_manager != null && entry.CountryId < GameManager.game_manager.countryFlags.Length)
                 {
                     Texture flagTex = (Texture)GameManager.game_manager.countryFlags[entry.CountryId];
@@ -167,27 +175,45 @@ namespace MultiGhostReplays
                     }
                 }
 
-                GUI.Label(new Rect(170f, rowY + 3f, 180f, 20f), entry.PlayerName);
-                GUI.Label(new Rect(360f, rowY + 3f, 120f, 20f), entry.CarName);
-                GUI.Label(new Rect(490f, rowY + 3f, 120f, 20f), entry.FormattedTime);
+                GUI.Label(new Rect(170f, rowY + 3f, 180f, 20f), entry.PlayerName, labelStyle);
+                GUI.Label(new Rect(360f, rowY + 3f, 120f, 20f), entry.CarName, labelStyle);
+                GUI.Label(new Rect(490f, rowY + 3f, 120f, 20f), entry.FormattedTime, labelStyle);
             }
 
             GUI.EndScrollView();
 
-            // Pagination button to dynamically fetch 50 additional entries
+            // Add 50 Players button
             float bottomY = winY + winHeight - 42f;
             if (!ReplayDownloader.isFetchingEntries && GUI.Button(new Rect(winX + (winWidth - 160f) / 2f, bottomY, 160f, 30f), "Add 50 Players"))
             {
                 int nextStart = ReplayDownloader.loadedEntries.Count + 1;
                 ReplayDownloader.FetchLeaderboardRange(nextStart, nextStart + 49);
             }
+
+            // Draw Tooltip in a fixed box TO THE RIGHT of the main Leaderboard Window
+            if (shouldShowTooltip)
+            {
+                float tooltipWidth = 220f;
+                float tooltipHeight = 110f;
+                float tooltipX = winX + winWidth + 10f; // Fixed position 10px to the right of leaderboard window
+                float tooltipY = winY + 30f;
+
+                Rect tooltipBoxRect = new Rect(tooltipX, tooltipY, tooltipWidth, tooltipHeight);
+
+                GUI.Box(tooltipBoxRect, "");
+                GUIStyle tooltipTextStyle = new GUIStyle(GUI.skin.label)
+                {
+                    wordWrap = true,
+                    fontSize = 11,
+                    alignment = TextAnchor.MiddleCenter
+                };
+                tooltipTextStyle.normal.textColor = Color.yellow;
+
+                GUI.Label(new Rect(tooltipBoxRect.x + 8f, tooltipBoxRect.y + 8f, tooltipBoxRect.width - 16f, tooltipBoxRect.height - 16f),
+                    "Selecting more than 166 ghost cars exceeds Unity's audio engine channel limits. Engine sound effects may stutter, glitch, or turn completely silent.", tooltipTextStyle);
+            }
         }
 
-        /// <summary>
-        /// Toggles selection state for all leaderboard entries from index 0 up to targetIndex.
-        /// If all entries in range are checked, deselects them all; otherwise, selects all in range.
-        /// </summary>
-        /// <param name="targetIndex">The end index of the range operation.</param>
         private static void ToggleRangeSelectionUpTo(int targetIndex)
         {
             bool allChecked = true;
