@@ -110,8 +110,6 @@ namespace MultiGhostReplays
                     ReplayCacheManager.InvalidateOutdatedCache(trackId, steamId, scoreMs);
                     bool cached = ReplayCacheManager.IsReplayCached(trackId, steamId, scoreMs);
 
-                    MelonLogger.Msg($"[DEBUG-UI] Entry #{entry.m_nGlobalRank} | Player: '{SteamFriends.GetFriendPersonaName(entry.m_steamIDUser)}' | SteamID: {steamId} | ScoreMS: {scoreMs} | Cached? {cached}");
-
                     LeaderboardEntryData data = new LeaderboardEntryData
                     {
                         Rank = entry.m_nGlobalRank,
@@ -151,6 +149,9 @@ namespace MultiGhostReplays
             MainMod.queuedLeaderboardReplays.Clear();
             int trackID = TrackManager.current_track_id;
             int loadedCount = 0;
+            ReplayData lastLoadedReplay = null;
+            int lastRank = 1;
+            int lastEntryIndex = 0;
 
             FieldInfo handleField = typeof(SteamFunctions).GetField("currentlySelectedLeaderboard", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
             SteamLeaderboard_t leaderboardHandle = handleField != null ? (SteamLeaderboard_t)handleField.GetValue(steamFuncs) : default;
@@ -166,27 +167,27 @@ namespace MultiGhostReplays
                 var entry = loadedEntries[i];
                 if (!entry.IsSelected) continue;
 
-                MelonLogger.Msg($"[DEBUG-DL] Processing Entry #{entry.Rank} ({entry.PlayerName}) | SteamID: {entry.SteamId} | ScoreMS: {entry.Score}");
+                lastRank = entry.Rank;
+                lastEntryIndex = entry.EntryIndex;
 
-                // 1. Tenta carregar do cache local JSON
+                // 1. Check local JSON cache first
                 ReplayData cachedData = ReplayCacheManager.LoadReplayFromCache(trackID, entry.SteamId, entry.Score);
                 if (cachedData != null)
                 {
                     entry.IsCached = true;
                     MainMod.queuedLeaderboardReplays.Add(cachedData);
+                    lastLoadedReplay = cachedData;
                     loadedCount++;
-                    MelonLogger.Msg($"[DEBUG-DL] Replay #{entry.Rank} ({entry.PlayerName}) LOADED FROM LOCAL CACHE.");
+                    MelonLogger.Msg($"[Mod] Replay #{entry.Rank} ({entry.PlayerName}) loaded from local cache.");
                     continue;
                 }
 
-                // 2. Se não estiver em cache, faz o download via Steam
-                MelonLogger.Msg($"[DEBUG-DL] Replay #{entry.Rank} NOT found in cache. Starting Steam UGC Download...");
+                // 2. Download via Steam UGC if not cached
                 entry.IsDownloading = true;
                 MainMod.statusMessage = $"Downloading #{entry.Rank}...";
 
                 ClearDownloadedUGCBuffer();
-                SteamFunctions.selectedLeaderboardEntry = entry.EntryIndex;
-                SetSelectedEntryDLStarted(steamFuncs, entry.EntryIndex);
+                SyncNativeLeaderboardSelection(steamFuncs, entry.EntryIndex);
 
                 if (entry.UgcHandle.m_UGCHandle != 0 && leaderboardHandle.m_SteamLeaderboard != 0)
                 {
@@ -212,22 +213,33 @@ namespace MultiGhostReplays
 
                 if (downloaded != null)
                 {
-                    MelonLogger.Msg($"[DEBUG-DL] Download finished from Steam. Native ReplayData stats -> Name: '{downloaded.playername}', Positions: {downloaded.car_positions?.Length ?? 0}, Steering: {downloaded.car_steering_angles?.Length ?? 0}, CSD Null? {(downloaded.csd == null)}");
-
                     ReplayCacheManager.SaveReplayToCache(trackID, entry.SteamId, entry.Score, downloaded);
                     entry.IsCached = true;
 
                     MainMod.queuedLeaderboardReplays.Add(downloaded);
+                    lastLoadedReplay = downloaded;
                     loadedCount++;
+                    MelonLogger.Msg($"[Mod] Replay #{entry.Rank} ({downloaded.playername}) downloaded & cached.");
                 }
                 else
                 {
-                    MelonLogger.Warning($"[DEBUG-DL] Replay #{entry.Rank} download TIMED OUT from Steam.");
+                    MelonLogger.Warning($"[Mod] Replay #{entry.Rank} download timed out.");
                 }
             }
 
             if (MainMod.queuedLeaderboardReplays.Count > 0)
             {
+                // Injeta o último replay selecionado nos buffers nativos do SteamFunctions
+                if (lastLoadedReplay != null)
+                {
+                    SetDownloadedUGCReplayBuffer(lastLoadedReplay);
+
+                    // Configura o rank correto usando o campo nativo da DLL
+                    SetFieldByName(steamFuncs, "downloadedUGCReplayRankFromLBSelect", lastRank);
+
+                    SyncNativeLeaderboardSelection(steamFuncs, lastEntryIndex);
+                }
+
                 MainMod.statusMessage = $"{MainMod.queuedLeaderboardReplays.Count} Replays Ready!";
                 isDownloadingBatch = false;
                 GameManager.game_manager.MainMenuButtonPressed(5);
@@ -257,8 +269,7 @@ namespace MultiGhostReplays
                 MainMod.statusMessage = $"Caching #{entry.Rank}...";
 
                 ClearDownloadedUGCBuffer();
-                SteamFunctions.selectedLeaderboardEntry = entry.EntryIndex;
-                SetSelectedEntryDLStarted(steamFuncs, entry.EntryIndex);
+                SyncNativeLeaderboardSelection(steamFuncs, entry.EntryIndex);
 
                 if (entry.UgcHandle.m_UGCHandle != 0 && leaderboardHandle.m_SteamLeaderboard != 0)
                 {
@@ -298,24 +309,32 @@ namespace MultiGhostReplays
             isDownloadingBatch = false;
         }
 
-        private static void SetSelectedEntryDLStarted(SteamFunctions steamFuncs, int value)
+        private static void SyncNativeLeaderboardSelection(SteamFunctions steamFuncs, int entryIndex)
         {
-            FieldInfo field = typeof(SteamFunctions).GetField("selectedLeaderboardEntryWhenDLStarted", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
+            SetFieldByName(steamFuncs, "selectedLeaderboardEntry", entryIndex);
+            SetFieldByName(steamFuncs, "selectedLeaderboardEntryWhenDLStarted", entryIndex);
+        }
+
+        private static void SetDownloadedUGCReplayBuffer(ReplayData replay)
+        {
+            SetFieldByName(GameManager.game_manager?.steam_functions, "downloadedUGCReplay", replay);
+        }
+
+        public static void ClearDownloadedUGCBuffer()
+        {
+            SetFieldByName(GameManager.game_manager?.steam_functions, "downloadedUGCReplay", null);
+        }
+
+        private static void SetFieldByName(object target, string fieldName, object value)
+        {
+            if (target == null) return;
+            FieldInfo field = target.GetType().GetField(fieldName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
             if (field != null)
             {
                 if (field.IsStatic)
                     field.SetValue(null, value);
                 else
-                    field.SetValue(steamFuncs, value);
-            }
-        }
-
-        public static void ClearDownloadedUGCBuffer()
-        {
-            FieldInfo field = typeof(SteamFunctions).GetField("downloadedUGCReplay", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
-            if (field != null)
-            {
-                field.SetValue(null, null);
+                    field.SetValue(target, value);
             }
         }
 
