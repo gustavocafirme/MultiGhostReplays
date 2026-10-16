@@ -27,7 +27,7 @@ namespace MultiGhostReplays
 
     public static class ReplayDownloader
     {
-        public const int MAX_ALLOWED_GHOSTS = 512;
+        public const int MAX_ALLOWED_GHOSTS = 333;
 
         public static bool isDownloadingBatch = false;
         public static List<LeaderboardEntryData> loadedEntries = new List<LeaderboardEntryData>();
