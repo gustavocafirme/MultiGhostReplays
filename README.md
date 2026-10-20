@@ -2,21 +2,24 @@
 
 [![MelonLoader](https://img.shields.io/badge/Dependency-MelonLoader-green?style=flat-square&logo=github)](https://github.com/LavaGang/MelonLoader)
 
-**Multi-Ghost Replays** is a MelonLoader mod for *Star Drift Evolution* that allows players to load, synchronize, and view up to 10 leaderboard ghosts simultaneously in a replay from both Time Trial (Quick Race) and Daily Challenge modes.
+**Multi-Ghost Replays** is a MelonLoader mod for *Star Drift Evolution* that allows players to batch download, cache, synchronize, and view up to **333 leaderboard ghosts** simultaneously in replays across Quick Race (Time Trial) and Daily Challenge modes.
 
 ---
 
 ## Features
 
-- **Leaderboard Multi-Ghost Support:** Select and load up to 512 player ghosts simultaneously from a new extended leaderboard panel in replay viewing from both Quick Race and Daily Challenge modes.
-- **Personal Best Ghost Spawning:** Quickly spawn your own Personal Best record ghost alongside loaded leaderboard entries.
-- **Synchronized Playback:** Master timeline synchronization ensuring all active ghosts remain aligned during play, pause, restart, and high-speed timeline scrubbing.
-- **Tire Skidmarks Support:** Renders ground skidmarks for ghost vehicles with dynamic surface color mapping based on track terrain.
+- **Massive Multi-Ghost Support:** Select, download, and render up to **333 player ghosts** simultaneously directly from an extended in-game leaderboard browser.
+- **Batch Leaderboard Loading:** Easily load entries in customizable batches (**+50, +100, +200, +500**) with automatic bounds checking that locks pagination when all track entries are fetched.
+- **Country & Flag Filtering:** Filter leaderboard entries globally or by specific country flags using a dedicated modal flag picker, or by clicking directly on any player's flag within the table.
+- **Flexible Batch Selection Controls:** Instantly select (`✓`) or deselect (`X`) entries, reset country filters to Global (`G`), and use convenient range-selection buttons to check or uncheck all entries up to a specific row. All batch viewing and downloading actions dynamically respect active country filters.
+- **Automated Local Caching System:** Replays are automatically stored locally as high-performance JSON files to avoid redundant downloads and dramatically speed up replay loading times.
+- **UTC-Based Daily Challenge Rollover:** Daily Challenge replays are safely isolated in a dedicated `Daily` cache folder with a global **07:00 UTC** auto-reset rollover mechanism for synchronized day shifts worldwide.
+- **Audio Overflow Warning:** Displays a visual warning (`[!] AUDIO OVERFLOW` with a custom red glow) and safety tooltips when selecting over 166 ghosts, alerting users that exceeding Unity's audio engine channel limits may cause sound effects to stutter, glitch, or turn completely silent.
+- **Tire Skidmarks & Dynamic Surface Color:** Renders ground skidmarks for ghost vehicles with surface color mapping based on track terrain.
 - **Ghost Headlights Support:** Renders active headlights on ghost vehicles during night-track replays for enhanced immersion.
-- **Custom Visual Toggles:** Easily enable or disable visual effects on demand, including tire smoke trails, night-track headlights, and ground skidmarks, all enabled by default.
-- **Ghost Reset Option:** Includes a manual clear button ("Clear All") as a quick reset safeguard to instantly destroy all active ghosts on demand.
-- **Massive Performance Optimizations:** Built with static lookup caching for components and singletons to minimize runtime reflection overhead and maximize FPS during multi-ghost playback.
-- **Custom Scalable UI:** Features a resolution-scaled selection panel with custom checkmarks that render properly at high resolutions (1080p, 1440p, 4K).
+- **Custom Visual Toggles:** Toggle visual effects on demand (including tire smoke trails, night-track headlights, and ground skidmarks), all enabled by default.
+- **Synchronized Playback:** Master timeline synchronization ensures all active ghosts remain aligned during play, pause, restart, and high-speed timeline scrubbing.
+- **High-Performance List Virtualization:** The UI table utilizes list culling and virtualization, maintaining smooth high FPS even when managing thousands of loaded entries.
 - **Toggleable Interface:** Easily hide or show the mod interface at any time during gameplay by pressing **F5**.
 
 ---
@@ -42,7 +45,7 @@ Because *Star Drift Evolution* runs on a 32-bit architecture, **you must use the
 6. Click **Install**.
 
 ### Step 2: Install Multi-Ghost Replays
-1. Download the latest version of `MultiGhostReplays.dll` from the [Releases](https://github.com/gustavocafirme/MultiGhostReplays/releases) tab in this repository.
+1. Download the latest version of `MultiGhostReplays.dll` from the [Releases](https://github.com/gustavocafirme/MultiGhostReplays/releases) page in this repository.
 2. Move `MultiGhostReplays.dll` into the `Mods` folder inside your *Star Drift Evolution* installation directory:  
    `...\Steam\steamapps\common\Star Drift Evolution\Mods\MultiGhostReplays.dll`
 3. Launch the game!
@@ -52,7 +55,7 @@ Because *Star Drift Evolution* runs on a 32-bit architecture, **you must use the
 ## Updating
 
 ### Update Multi-Ghost Replays
-1. Download the latest version of `MultiGhostReplays.dll` from the [Releases](https://github.com/gustavocafirme/MultiGhostReplays/releases) tab in this repository.
+1. Download the latest version of `MultiGhostReplays.dll` from the [Releases](https://github.com/gustavocafirme/MultiGhostReplays/releases) page in this repository.
 2. Move `MultiGhostReplays.dll` into the `Mods` folder inside your *Star Drift Evolution* installation directory:  
    `...\Steam\steamapps\common\Star Drift Evolution\Mods\MultiGhostReplays.dll`, replacing the older version of the dll.
 3. Launch the game!
@@ -61,11 +64,11 @@ Because *Star Drift Evolution* runs on a 32-bit architecture, **you must use the
 
 ## How to Use
 
-1. Navigate to either **Quick Race (Time Trial)** or **Daily Quest**.
+1. Navigate to either **Quick Race (Time Trial)** or **Daily Challenge**.
 2. Make sure the replay option in the track selection menu is set to **REPLAY: LEADERBOARD**.
 3. Click the Leaderboard button on the right side of the screen to open up the **Leaderboard Replay Browser**.
 4. Select all the replays you wish to view through the checkboxes and batch buttons.
-5. Click **LOAD SELECTED**.
+5. Click **VIEW WITH SELECTED**.
 6. Wait for it to download the replay tracks and enter the replay view afterwards.
 7. Watch all selected ghosts simultaneously!
 
