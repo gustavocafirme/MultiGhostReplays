@@ -11,16 +11,16 @@ namespace MultiGhostReplays
         public static bool showExtendedWindow = false;
         private static Vector2 scrollPosition = Vector2.zero;
 
-        // Variáveis de controle para o painel de seleção de países/bandeiras
+        // Country filter and picker control variables
         private static bool showCountryPicker = false;
         private static Vector2 countryScrollPosition = Vector2.zero;
-        private static int selectedCountryFilter = -1; // -1 significa "Global" (sem filtro)
+        public static int selectedCountryFilter = -1; // -1 means "Global" (no filter)
 
-        // Controle para resetar/verificar o limite de jogadores carregados por mapa
+        // Track change detection and loading completion flags
         private static int lastTrackIdChecked = -1;
         private static bool allPlayersLoadedForCurrentTrack = false;
 
-        // Textura sólida para opacidade do modal (RGB: 28, 28, 31 / #1C1C1F)
+        // Solid background texture for modal opaqueness
         private static Texture2D solidBackgroundTex = null;
 
         private static Texture2D GetSolidBackgroundTexture()
@@ -36,8 +36,25 @@ namespace MultiGhostReplays
 
         public static void DrawLeaderboardCheckboxes()
         {
-            var steamFuncs = GameManager.game_manager?.steam_functions;
-            if (steamFuncs == null) return;
+            var gameMgr = GameManager.game_manager;
+            if (gameMgr == null || gameMgr.steam_functions == null) return;
+
+            // Security check: Only display the leaderboard button during valid race/track menus
+            int menuState = gameMgr.menu_state;
+            bool isValidMenuState =
+                menuState == GameManager.MENU_STATE_TRACK_SELECTION_QUICK_RACE ||
+                menuState == GameManager.MENU_STATE_QUICK_RACE_END_INFORMATION ||
+                menuState == GameManager.MENU_STATE_TRACK_INFORMATION_WORLD ||
+                menuState == GameManager.MENU_STATE_QUICK_RACE_IN_PROGRESS ||
+                menuState == GameManager.MENU_STATE_VIEW_REPLAY_QUICK_RACE ||
+                menuState == GameManager.MENU_STATE_VIEW_REPLAY_WORLD;
+
+            if (!isValidMenuState)
+            {
+                showExtendedWindow = false;
+                showCountryPicker = false;
+                return;
+            }
 
             float scaleX = Screen.width / 1920f;
             float scaleY = Screen.height / 1080f;
@@ -66,7 +83,7 @@ namespace MultiGhostReplays
 
             if (showExtendedWindow)
             {
-                DrawExtendedLeaderboardWindow(steamFuncs);
+                DrawExtendedLeaderboardWindow(gameMgr.steam_functions);
             }
         }
 
@@ -77,7 +94,7 @@ namespace MultiGhostReplays
             float winX = (Screen.width - winWidth) / 2f;
             float winY = (Screen.height - winHeight) / 2f;
 
-            // Valida se mudou de pista para resetar o estado de "todos os jogadores carregados"
+            // Validate track change to reset the "all players loaded" state flag
             int currentTrackId = TrackManager.current_track_id;
             if (lastTrackIdChecked != currentTrackId)
             {
@@ -89,7 +106,7 @@ namespace MultiGhostReplays
             GUI.Box(new Rect(winX, winY, winWidth, winHeight), "");
             GUI.Box(new Rect(winX + 2, winY + 2, winWidth - 4, winHeight - 4), "Leaderboard Replay Browser");
 
-            // Desativa temporariamente os cliques nos controles do leaderboard se o painel de países estiver aberto
+            // Temporarily disable clicks on leaderboard controls if the country picker is open
             GUI.enabled = !showCountryPicker;
 
             // Close button
@@ -99,22 +116,39 @@ namespace MultiGhostReplays
                 showCountryPicker = false;
             }
 
-            // Audio overflow warning (> 166 selected)
-            int selectedCount = ReplayDownloader.loadedEntries.FindAll(e => e.IsSelected).Count;
+            // Filter entries based on the active country filter early for accurate selection counting
+            var filteredEntries = ReplayDownloader.loadedEntries.FindAll(e => selectedCountryFilter == -1 || e.CountryId == selectedCountryFilter);
+
+            // Audio overflow warning (> 166 selected entries in the current filtered view)
+            int selectedCount = filteredEntries.FindAll(e => e.IsSelected).Count;
             bool shouldShowTooltip = false;
 
             if (selectedCount > 166)
             {
-                GUIStyle warningStyle = new GUIStyle(GUI.skin.label)
+                Rect warningRect = new Rect(winX + winWidth - 170f, winY + 32f, 160f, 24f);
+
+                // 1. Glow effect style (translucent red halo)
+                GUIStyle glowStyle = new GUIStyle(GUI.skin.label)
                 {
                     alignment = TextAnchor.MiddleRight,
-                    fontSize = 11,
-                    fontStyle = FontStyle.Bold
+                    fontSize = 11
                 };
-                warningStyle.normal.textColor = Color.red;
+                glowStyle.normal.textColor = new Color(1f, 0f, 0f, 0.5f);
 
-                Rect warningRect = new Rect(winX + winWidth - 170f, winY + 32f, 160f, 24f);
-                GUI.Label(warningRect, "⚠️ AUDIO OVERFLOW", warningStyle);
+                // Render offset text in 4 directions to form the glow halo
+                GUI.Label(new Rect(warningRect.x - 1f, warningRect.y, warningRect.width, warningRect.height), "[!] AUDIO OVERFLOW", glowStyle);
+                GUI.Label(new Rect(warningRect.x + 1f, warningRect.y, warningRect.width, warningRect.height), "[!] AUDIO OVERFLOW", glowStyle);
+                GUI.Label(new Rect(warningRect.x, warningRect.y - 1f, warningRect.width, warningRect.height), "[!] AUDIO OVERFLOW", glowStyle);
+                GUI.Label(new Rect(warningRect.x, warningRect.y + 1f, warningRect.width, warningRect.height), "[!] AUDIO OVERFLOW", glowStyle);
+
+                // 2. Main text layer rendered crisp on top with custom light-red shade
+                GUIStyle mainStyle = new GUIStyle(GUI.skin.label)
+                {
+                    alignment = TextAnchor.MiddleRight,
+                    fontSize = 11
+                };
+                mainStyle.normal.textColor = new Color(1f, 0.32f, 0.32f, 1f);
+                GUI.Label(warningRect, "[!] AUDIO OVERFLOW", mainStyle);
 
                 if (warningRect.Contains(Event.current.mousePosition))
                 {
@@ -122,7 +156,7 @@ namespace MultiGhostReplays
                 }
             }
 
-            // Selection controls (Check / Uncheck)
+            // Selection controls (Check / Uncheck filtered items)
             if (GUI.Button(new Rect(winX + 15f, winY + 30f, 30f, 24f), "✓"))
             {
                 foreach (var entry in ReplayDownloader.loadedEntries)
@@ -141,7 +175,7 @@ namespace MultiGhostReplays
                 }
             }
 
-            // Botão "G" fixo ou espaço vazio reservado
+            // Fixed "G" reset button or reserved empty space slot
             Rect gButtonRect = new Rect(winX + 85f, winY + 30f, 30f, 24f);
             if (selectedCountryFilter != -1)
             {
@@ -151,7 +185,7 @@ namespace MultiGhostReplays
                 }
             }
 
-            // Action Buttons com posição X estática
+            // Action buttons with static X positioning
             float actionButtonsStartX = winX + 120f;
             if (!ReplayDownloader.isDownloadingBatch)
             {
@@ -166,14 +200,14 @@ namespace MultiGhostReplays
                 }
             }
 
-            // Headers
+            // Table headers layout
             float headerY = winY + 62f;
             GUI.Box(new Rect(winX + 10f, headerY, winWidth - 35f, 26f), "");
             GUI.Label(new Rect(winX + 21f, headerY + 3f, 35f, 20f), "Set");
             GUI.Label(new Rect(winX + 51f, headerY + 3f, 25f, 20f), "Chk");
             GUI.Label(new Rect(winX + 85f, headerY + 3f, 45f, 20f), "Rank");
 
-            // O botão Flag precisa continuar habilitado mesmo com o painel aberto para poder fechá-lo por ele
+            // Flag column header button remains enabled to allow toggling the country picker
             GUI.enabled = true;
             GUIStyle flagHeaderButtonStyle = new GUIStyle(GUI.skin.button)
             {
@@ -190,14 +224,13 @@ namespace MultiGhostReplays
             GUI.Label(new Rect(winX + 370f, headerY + 3f, 120f, 20f), "Car Model");
             GUI.Label(new Rect(winX + 500f, headerY + 3f, 120f, 20f), "Time");
 
-            // Restaura o estado de bloqueio para a tabela
+            // Restore blocking state for table rows
             GUI.enabled = !showCountryPicker;
 
-            // Scroll View Area (Filtered list) com Virtualização otimizada
+            // Scroll View Area (Filtered list) with optimized virtualization
             float tableY = winY + 92f;
             float tableHeight = winHeight - 145f;
 
-            var filteredEntries = ReplayDownloader.loadedEntries.FindAll(e => selectedCountryFilter == -1 || e.CountryId == selectedCountryFilter);
             float rowHeight = 28f;
             float contentHeight = filteredEntries.Count * rowHeight;
 
@@ -269,7 +302,7 @@ namespace MultiGhostReplays
 
             GUI.EndScrollView();
 
-            // Verifica se o total de entradas carregadas atingiu o limite máximo do leaderboard da Steam
+            // Check if loaded entries reached the maximum Steam leaderboard entry count
             var steamFuncsInstance = GameManager.game_manager?.steam_functions;
             if (steamFuncsInstance != null)
             {
@@ -288,24 +321,23 @@ namespace MultiGhostReplays
                 }
             }
 
-            // Se o painel de países estiver aberto, os botões inferiores também devem respeitar o bloqueio
+            // Apply block state to bottom action buttons if the country picker is open
             if (showCountryPicker)
             {
                 GUI.enabled = false;
             }
             else
             {
-                // Respeita o travamento se todos os jogadores já foram carregados
                 GUI.enabled = !allPlayersLoadedForCurrentTrack;
             }
 
-            // Botões de Adicionar Jogadores (50, 100, 200 e 500) lado a lado na parte inferior
+            // Pagination batch fetch buttons (50, 100, 200 and 500) at the bottom footer
             float bottomY = winY + winHeight - 42f;
             if (!ReplayDownloader.isFetchingEntries)
             {
                 float btnW = 95f;
                 float spacing = 6f;
-                float totalW = (btnW * 4f) + (spacing * 3f); // 380 + 18 = 398f
+                float totalW = (btnW * 4f) + (spacing * 3f);
                 float startX = winX + (winWidth - totalW) / 2f;
 
                 if (GUI.Button(new Rect(startX, bottomY, btnW, 30f), "Add 50"))
@@ -333,7 +365,7 @@ namespace MultiGhostReplays
                 }
             }
 
-            // Restaura GUI.enabled para true para desenhar o painel de países sem interferência
+            // Restore GUI.enabled for modal rendering
             GUI.enabled = true;
 
             // Country Selector Modal Overlay Panel
@@ -345,14 +377,14 @@ namespace MultiGhostReplays
                 float pickerY = winY + (winHeight - pickerHeight) / 2f;
                 Rect pickerRect = new Rect(pickerX, pickerY, pickerWidth, pickerHeight);
 
-                // Fecha o painel de países se houver um clique fora dele
+                // Close country picker on outside click
                 if (Event.current.type == EventType.MouseDown && !pickerRect.Contains(Event.current.mousePosition))
                 {
                     showCountryPicker = false;
                     Event.current.Use();
                 }
 
-                // Cria um estilo customizado com fundo opaco sólido (RGB 28, 28, 31) e texto forçado a branco
+                // Custom box style with solid background and forced white text color
                 GUIStyle opaqueBoxStyle = new GUIStyle(GUI.skin.box);
                 opaqueBoxStyle.normal.background = GetSolidBackgroundTexture();
                 opaqueBoxStyle.active.background = GetSolidBackgroundTexture();
@@ -364,10 +396,8 @@ namespace MultiGhostReplays
                 opaqueBoxStyle.active.textColor = Color.white;
                 opaqueBoxStyle.focused.textColor = Color.white;
 
-                // Desenha o fundo opaco sólido por cima do leaderboard
                 GUI.Box(pickerRect, "", opaqueBoxStyle);
 
-                // Janela/Área interna do seletor de países
                 GUI.BeginGroup(pickerRect);
                 {
                     GUI.Box(new Rect(2f, 2f, pickerWidth - 4f, pickerHeight - 4f), "Select Country Filter", opaqueBoxStyle);
@@ -379,7 +409,7 @@ namespace MultiGhostReplays
 
                     Rect innerAreaRect = new Rect(10f, 35f, pickerWidth - 20f, pickerHeight - 45f);
 
-                    // Tratamento para rolar o scroll exclusivamente no painel de países e impedir vazamento para o fundo
+                    // Restrict mouse scroll wheel strictly to the country picker container
                     if (Event.current.type == EventType.ScrollWheel)
                     {
                         if (innerAreaRect.Contains(Event.current.mousePosition))
@@ -410,7 +440,7 @@ namespace MultiGhostReplays
 
                         GUILayout.Space(5f);
 
-                        // Grid de bandeiras (10 colunas, largura de painel 50px)
+                        // Country flags grid layout (10 columns, 50px cell width)
                         countryScrollPosition = GUILayout.BeginScrollView(countryScrollPosition, GUILayout.Width(pickerWidth - 20f), GUILayout.Height(pickerHeight - 98f));
 
                         if (GameManager.game_manager != null && GameManager.game_manager.countryFlags != null)
@@ -431,17 +461,14 @@ namespace MultiGhostReplays
                                         Texture flagTex = (Texture)flags[index];
                                         if (flagTex != null)
                                         {
-                                            // Container de 50px de largura
                                             GUILayout.BeginVertical(GUILayout.Width(50f), GUILayout.Height(29f));
                                             {
                                                 GUILayout.BeginHorizontal();
                                                 GUILayout.FlexibleSpace();
 
-                                                // Desenha a bandeira diretamente como textura de 36px de largura
                                                 Rect flagBtnRect = GUILayoutUtility.GetRect(36f, 22f, GUILayout.Width(36f), GUILayout.Height(22f));
                                                 GUI.DrawTexture(flagBtnRect, flagTex);
 
-                                                // Capta o clique do mouse na bandeira
                                                 if (Event.current.type == EventType.MouseDown && flagBtnRect.Contains(Event.current.mousePosition))
                                                 {
                                                     selectedCountryFilter = index;

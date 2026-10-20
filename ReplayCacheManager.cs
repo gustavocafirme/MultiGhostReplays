@@ -8,6 +8,62 @@ namespace MultiGhostReplays
     public static class ReplayCacheManager
     {
         private static string BaseCacheFolder => Path.Combine(Path.Combine(Directory.GetCurrentDirectory(), "UserData"), "ReplayCache");
+        private static string DailyCacheFolder => Path.Combine(BaseCacheFolder, "Daily");
+
+        /// <summary>
+        /// Validates if the Daily Challenge cycle has changed based on the global UTC standard (resetting at 07:00 UTC / 04:00 BRT).
+        /// Clears the Daily cache folder automatically if a new cycle is detected, supporting players worldwide.
+        /// </summary>
+        private static void CheckAndClearDailyCacheIfNeeded()
+        {
+            try
+            {
+                string markerFile = Path.Combine(DailyCacheFolder, "session_date.txt");
+
+                // Daily server cycle resets at 07:00 UTC (equivalent to 04:00 in Brazil GMT-3).
+                // Subtracting 7 hours from current UTC aligns the logical game day cycle globally.
+                DateTime utcNow = DateTime.UtcNow;
+                DateTime gameServerDay = utcNow.AddHours(-7).Date;
+                string expectedDayString = gameServerDay.ToString("yyyy-MM-dd");
+
+                bool clearFolder = false;
+                if (Directory.Exists(DailyCacheFolder))
+                {
+                    if (File.Exists(markerFile))
+                    {
+                        string savedDayString = File.ReadAllText(markerFile).Trim();
+                        if (savedDayString != expectedDayString)
+                        {
+                            clearFolder = true;
+                        }
+                    }
+                    else
+                    {
+                        clearFolder = true;
+                    }
+
+                    if (clearFolder)
+                    {
+                        foreach (string file in Directory.GetFiles(DailyCacheFolder))
+                        {
+                            try { File.Delete(file); } catch { }
+                        }
+                        MelonLogger.Msg("[Cache] Daily challenges reset (Global UTC rollover detected). Cleared Daily cache folder.");
+                    }
+                }
+
+                if (!Directory.Exists(DailyCacheFolder))
+                {
+                    Directory.CreateDirectory(DailyCacheFolder);
+                }
+
+                File.WriteAllText(markerFile, expectedDayString);
+            }
+            catch (Exception ex)
+            {
+                MelonLogger.Warning($"[Cache] Error handling daily cache rollover: {ex.Message}");
+            }
+        }
 
         public static string GetTrackFolderPath(int trackId)
         {
@@ -16,6 +72,12 @@ namespace MultiGhostReplays
 
         public static string GetReplayFilePath(int trackId, ulong steamId, int scoreMs)
         {
+            if (GameManager.inDailyQuest)
+            {
+                CheckAndClearDailyCacheIfNeeded();
+                return Path.Combine(DailyCacheFolder, $"{steamId}_{scoreMs}.json");
+            }
+
             return Path.Combine(GetTrackFolderPath(trackId), $"{steamId}_{scoreMs}.json");
         }
 
@@ -26,11 +88,21 @@ namespace MultiGhostReplays
 
         public static void InvalidateOutdatedCache(int trackId, ulong steamId, int currentScoreMs)
         {
-            string trackFolder = GetTrackFolderPath(trackId);
-            if (!Directory.Exists(trackFolder)) return;
+            string targetFolder;
+            if (GameManager.inDailyQuest)
+            {
+                CheckAndClearDailyCacheIfNeeded();
+                targetFolder = DailyCacheFolder;
+            }
+            else
+            {
+                targetFolder = GetTrackFolderPath(trackId);
+            }
+
+            if (!Directory.Exists(targetFolder)) return;
 
             string searchPattern = $"{steamId}_*.json";
-            string[] files = Directory.GetFiles(trackFolder, searchPattern);
+            string[] files = Directory.GetFiles(targetFolder, searchPattern);
 
             foreach (string file in files)
             {
@@ -60,10 +132,20 @@ namespace MultiGhostReplays
             {
                 if (replayData == null) return;
 
-                string trackFolder = GetTrackFolderPath(trackId);
-                if (!Directory.Exists(trackFolder))
+                string targetFolder;
+                if (GameManager.inDailyQuest)
                 {
-                    Directory.CreateDirectory(trackFolder);
+                    CheckAndClearDailyCacheIfNeeded();
+                    targetFolder = DailyCacheFolder;
+                }
+                else
+                {
+                    targetFolder = GetTrackFolderPath(trackId);
+                }
+
+                if (!Directory.Exists(targetFolder))
+                {
+                    Directory.CreateDirectory(targetFolder);
                 }
 
                 InvalidateOutdatedCache(trackId, steamId, scoreMs);
@@ -74,12 +156,13 @@ namespace MultiGhostReplays
                     File.Delete(filePath);
                 }
 
-                // Utilize Native Game Conversion to ReplayDataBinary to guarantee CSD serialization
+                // Utilize native game conversion to ReplayDataBinary to guarantee CSD serialization
                 ReplayDataBinary binaryData = ConvertToBinaryData(replayData);
                 string json = JsonUtility.ToJson(binaryData, true);
 
                 File.WriteAllText(filePath, json);
-                MelonLogger.Msg($"[Cache] Saved full native JSON replay ({replayData.car_positions?.Length ?? 0} frames) -> {filePath}");
+                string folderType = GameManager.inDailyQuest ? "Daily" : $"Track_{trackId}";
+                MelonLogger.Msg($"[Cache] Saved full native JSON replay ({folderType}) ({replayData.car_positions?.Length ?? 0} frames) -> {filePath}");
             }
             catch (Exception ex)
             {

@@ -8,6 +8,9 @@ using UnityEngine;
 
 namespace MultiGhostReplays
 {
+    /// <summary>
+    /// Holds display and state metadata for an individual row/entry in the extended leaderboard UI.
+    /// </summary>
     public class LeaderboardEntryData
     {
         public int Rank;
@@ -25,6 +28,9 @@ namespace MultiGhostReplays
         public UGCHandle_t UgcHandle;
     }
 
+    /// <summary>
+    /// Manages Steam leaderboard requests, local cache checks, UGC replay downloads, and batch processing.
+    /// </summary>
     public static class ReplayDownloader
     {
         public const int MAX_ALLOWED_GHOSTS = 333;
@@ -35,6 +41,7 @@ namespace MultiGhostReplays
 
         private static CallResult<LeaderboardScoresDownloaded_t> onScoresDownloadedCallResult;
 
+        // Static lookup array mapping internal car type IDs to descriptive names
         private static readonly string[] CarNamesMap = new string[]
         {
             "Rookie", "Shorty", "Baron", "Fox", "Petite", "Beast", "Dust Devil", "Thunderbolt",
@@ -46,6 +53,9 @@ namespace MultiGhostReplays
             "The Rock", "Colossus", "Majesty", "Delirium", "Safari", "Unrivaled RWD", "Hallowheel"
         };
 
+        /// <summary>
+        /// Requests a specific range of entries from the active Steam leaderboard.
+        /// </summary>
         public static void FetchLeaderboardRange(int rangeStart, int rangeEnd)
         {
             if (isFetchingEntries) return;
@@ -80,6 +90,9 @@ namespace MultiGhostReplays
             onScoresDownloadedCallResult.Set(call);
         }
 
+        /// <summary>
+        /// Steam API callback triggered when leaderboard score download completes. Parses and populates table entries.
+        /// </summary>
         private static void OnScoresDownloaded(LeaderboardScoresDownloaded_t pCallback, bool bIOFailure)
         {
             isFetchingEntries = false;
@@ -134,6 +147,9 @@ namespace MultiGhostReplays
             MainMod.statusMessage = "Ready";
         }
 
+        /// <summary>
+        /// Resolves the car name string from the given car type ID.
+        /// </summary>
         private static string GetCarNameByID(int carType)
         {
             if (carType >= 0 && carType < CarNamesMap.Length)
@@ -143,6 +159,9 @@ namespace MultiGhostReplays
             return $"Car #{carType}";
         }
 
+        /// <summary>
+        /// Coroutine that iterates through selected entries, loads from cache or downloads via UGC, queues them, and triggers replay playback.
+        /// </summary>
         public static IEnumerator ViewReplayWithSelectedEntries(SteamFunctions steamFuncs)
         {
             isDownloadingBatch = true;
@@ -167,10 +186,13 @@ namespace MultiGhostReplays
                 var entry = loadedEntries[i];
                 if (!entry.IsSelected) continue;
 
+                // Respect active country filter if set
+                if (LeaderboardUI.selectedCountryFilter != -1 && entry.CountryId != LeaderboardUI.selectedCountryFilter) continue;
+
                 lastRank = entry.Rank;
                 lastEntryIndex = entry.EntryIndex;
 
-                // 1. Check local JSON cache first
+                // Step 1: Check local JSON cache first
                 ReplayData cachedData = ReplayCacheManager.LoadReplayFromCache(trackID, entry.SteamId, entry.Score);
                 if (cachedData != null)
                 {
@@ -182,7 +204,7 @@ namespace MultiGhostReplays
                     continue;
                 }
 
-                // 2. Download via Steam UGC if not cached
+                // Step 2: Download via Steam UGC if not cached
                 entry.IsDownloading = true;
                 MainMod.statusMessage = $"Downloading #{entry.Rank}...";
 
@@ -229,14 +251,11 @@ namespace MultiGhostReplays
 
             if (MainMod.queuedLeaderboardReplays.Count > 0)
             {
-                // Injeta o último replay selecionado nos buffers nativos do SteamFunctions
+                // Inject the final selected replay into native SteamFunctions buffers
                 if (lastLoadedReplay != null)
                 {
                     SetDownloadedUGCReplayBuffer(lastLoadedReplay);
-
-                    // Configura o rank correto usando o campo nativo da DLL
                     SetFieldByName(steamFuncs, "downloadedUGCReplayRankFromLBSelect", lastRank);
-
                     SyncNativeLeaderboardSelection(steamFuncs, lastEntryIndex);
                 }
 
@@ -251,6 +270,9 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Coroutine that pre-caches selected entries without viewing them immediately.
+        /// </summary>
         public static IEnumerator LoadSelectedEntriesOnly(SteamFunctions steamFuncs)
         {
             isDownloadingBatch = true;
@@ -309,6 +331,9 @@ namespace MultiGhostReplays
             isDownloadingBatch = false;
         }
 
+        /// <summary>
+        /// Syncs native game reflection fields for leaderboard entry selection tracking.
+        /// </summary>
         private static void SyncNativeLeaderboardSelection(SteamFunctions steamFuncs, int entryIndex)
         {
             SetFieldByName(steamFuncs, "selectedLeaderboardEntry", entryIndex);
@@ -325,6 +350,9 @@ namespace MultiGhostReplays
             SetFieldByName(GameManager.game_manager?.steam_functions, "downloadedUGCReplay", null);
         }
 
+        /// <summary>
+        /// Generic reflection helper to set private or public fields by name.
+        /// </summary>
         private static void SetFieldByName(object target, string fieldName, object value)
         {
             if (target == null) return;
@@ -338,6 +366,9 @@ namespace MultiGhostReplays
             }
         }
 
+        /// <summary>
+        /// Clears all loaded entries and resets downloader state.
+        /// </summary>
         public static void ResetTableData()
         {
             loadedEntries.Clear();
